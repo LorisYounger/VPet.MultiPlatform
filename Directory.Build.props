@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <VPetRoot Condition="'$(VPetRoot)' == ''">$(MSBuildThisFileDirectory)..</VPetRoot>
+  </PropertyGroup>
+</Project>

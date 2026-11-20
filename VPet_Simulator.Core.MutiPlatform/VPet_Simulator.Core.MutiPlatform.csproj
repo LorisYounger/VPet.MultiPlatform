@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>VPet_Simulator.Core.MutiPlatform</RootNamespace>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="LinePutScript" Version="1.11.9" />
+    <!-- WPF 翻译库依赖 PresentationFramework 和 System.Xaml。宿主统一使用跨平台库的翻译状态。 -->
+    <PackageReference Include="LinePutScript.Localization" Version="1.1.0" />
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VPet_Simulator.Core.Base\VPet_Simulator.Core.Base.csproj" />
+    <ProjectReference Include="..\VPet-Simulator.Unified\VPet-Simulator.Unified.csproj" />
+  </ItemGroup>
+
+  <!-- 两个平台分别编译共享的 internal 数值逻辑。 -->
+  <ItemGroup>
+    <Compile Include="..\VPet_Simulator.Core.Base\Logic\**\*.cs" LinkBase="Shared\Logic" />
+  </ItemGroup>
+</Project>

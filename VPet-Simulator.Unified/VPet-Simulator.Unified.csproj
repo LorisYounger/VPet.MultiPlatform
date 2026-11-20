@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<RootNamespace>VPet_Simulator.Unified</RootNamespace>
+		<AssemblyName>VPet-Simulator.Unified</AssemblyName>
+		<Version>1.0.1</Version>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<FileVersion>$(Version).0</FileVersion>
+		<Title>VPet-Simulator.Unified</Title>
+		<Authors>LorisYounger</Authors>
+		<Copyright>exLB.org</Copyright>
+		<Description>虚拟桌宠模拟器（VPet）的跨平台代码 MOD 开发包。使用 UnifiedPlugin 编写一份插件 DLL，在支持 Unified 的 Windows 本体和 Avalonia 跨平台版中读取桌宠存档、添加互动菜单和收发访客表消息。</Description>
+		<PackageProjectUrl>https://github.com/LorisYounger/VPet</PackageProjectUrl>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>vpeticon.png</PackageIcon>
+		<PackageTags>VPet;MOD;UnifiedPlugin</PackageTags>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<!-- 与 Core.Base 共享的代码使用显式 using。 -->
+		<ImplicitUsings>disable</ImplicitUsings>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>CS1591</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\.editorconfig" Link=".editorconfig" />
+		<None Include="..\LICENSE" Pack="true" PackagePath="/" />
+		<None Update="README.md" Pack="true" PackagePath="/" />
+		<None Update="vpeticon.png" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="LinePutScript" Version="1.11.9" />
+	</ItemGroup>
+
+</Project>

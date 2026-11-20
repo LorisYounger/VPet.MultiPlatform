@@ -1,0 +1,186 @@
+using Avalonia.Controls;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using VPet_Simulator.Core;
+
+namespace VPet_Simulator.Core.MutiPlatform.Graph;
+
+public partial class GraphCore : IDisposable
+{
+    public int Resolution { get; set; } = 1000;
+    public long IdleCacheTimeout = TimeSpan.FromMinutes(2).Ticks;
+    public readonly Timer CleanTimer;
+
+    public GraphCore(int resolution)
+    {
+        CommConfig["Cache"] = new List<string>();
+        Resolution = resolution;
+        CleanTimer = new Timer(_ =>
+        {
+            long cleanTicks = DateTime.UtcNow.Ticks - IdleCacheTimeout;
+            for (int i = 0; i < GraphsALL.Count; i++)
+            {
+                GraphsALL[i].CleanupIdleCache(cleanTicks);
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    public Dictionary<GraphInfo.GraphType, HashSet<string>> GraphsName { get; } = new();
+    public Dictionary<string, Dictionary<GraphInfo.AnimatType, List<IAvaloniaGraph>>> GraphsList { get; } = new();
+    public List<IAvaloniaGraph> GraphsALL { get; } = new();
+    public Dictionary<string, Control> CommUIElements { get; } = new();
+    public Dictionary<string, object> CommConfig { get; } = new();
+
+    public void AddGraph(IAvaloniaGraph graph)
+    {
+        if (graph.GraphInfo.Type != GraphInfo.GraphType.Common)
+        {
+            if (!GraphsName.TryGetValue(graph.GraphInfo.Type, out var names))
+            {
+                names = new HashSet<string>();
+                GraphsName.Add(graph.GraphInfo.Type, names);
+            }
+            names.Add(graph.GraphInfo.Name);
+        }
+
+        if (!GraphsList.TryGetValue(graph.GraphInfo.Name, out var byAnimat))
+        {
+            byAnimat = new Dictionary<GraphInfo.AnimatType, List<IAvaloniaGraph>>();
+            GraphsList.Add(graph.GraphInfo.Name, byAnimat);
+        }
+
+        if (!byAnimat.TryGetValue(graph.GraphInfo.Animat, out var list))
+        {
+            list = new List<IAvaloniaGraph>();
+            byAnimat.Add(graph.GraphInfo.Animat, list);
+        }
+
+        list.Add(graph);
+        GraphsALL.Add(graph);
+    }
+
+    /// <summary>
+    /// 播放时才发现坏掉的动画 (有帧解不出来) 被摘掉时触发, 宿主据此提示 "动画加载错误"; 可能在后台线程上触发
+    /// </summary>
+    public event Action<IAvaloniaGraph>? GraphFailed;
+
+    /// <summary>
+    /// 把播放时才发现坏掉的动画从 GraphsList 里摘掉
+    /// </summary>
+    /// 跨平台: Windows 版启动时就解码全部帧, 坏的由 Main.Load_2_WaitGraph 从 GraphsList 里摘掉并记进 ErrorMessage;
+    /// 这边按帧惰性解码 (见 PNGAnimation.GetFrame), 坏帧到播放时才暴露, 所以在这里补上同样的摘除, 再交给宿主提示.
+    /// 换一份新列表而不是原地 Remove: FindGraphs 随时在后台线程上读这些列表. GraphsALL 与 Windows 版一样不动
+    internal void RemoveFailedGraph(IAvaloniaGraph graph)
+    {
+        lock (GraphsList)
+        {
+            if (!GraphsList.TryGetValue(graph.GraphInfo.Name, out var byAnimat)
+                || !byAnimat.TryGetValue(graph.GraphInfo.Animat, out var list)
+                || !list.Contains(graph))
+                return;
+            byAnimat[graph.GraphInfo.Animat] = list.Where(x => !ReferenceEquals(x, graph)).ToList();
+        }
+        GraphFailed?.Invoke(graph);
+    }
+
+    public string? FindName(GraphInfo.GraphType type)
+    {
+        if (GraphsName.TryGetValue(type, out var gl) && gl.Count > 0)
+        {
+            return gl.ElementAt(Function.Rnd.Next(gl.Count));
+        }
+        return null;
+    }
+
+    public IAvaloniaGraph? FindGraph(string? graphName, GraphInfo.AnimatType animat, IGameSave.ModeType mode)
+    {
+        if (graphName == null)
+            return null;
+
+        if (GraphsList.TryGetValue(graphName, out var byAnimat) && byAnimat.TryGetValue(animat, out var graphs))
+        {
+            var list = graphs.FindAll(x => x.GraphInfo.ModeType == mode);
+            if (list.Count > 0)
+            {
+                return list.Count == 1 ? list[0] : list[Function.Rnd.Next(list.Count)];
+            }
+
+            if (mode == IGameSave.ModeType.Ill)
+                return null;
+
+            int down = (int)mode + 1;
+            if (down < 3)
+            {
+                list = graphs.FindAll(x => x.GraphInfo.ModeType == (IGameSave.ModeType)down);
+                if (list.Count > 0)
+                    return list[Function.Rnd.Next(list.Count)];
+            }
+
+            int up = (int)mode - 1;
+            if (up >= 1)
+            {
+                list = graphs.FindAll(x => x.GraphInfo.ModeType == (IGameSave.ModeType)up);
+                if (list.Count > 0)
+                    return list[Function.Rnd.Next(list.Count)];
+            }
+
+            list = graphs.FindAll(x => x.GraphInfo.ModeType != IGameSave.ModeType.Ill);
+            if (list.Count > 0)
+                return list[Function.Rnd.Next(list.Count)];
+        }
+
+        return null;
+    }
+
+    public List<IAvaloniaGraph> FindGraphs(string? graphName, GraphInfo.AnimatType animat, IGameSave.ModeType mode)
+    {
+        if (graphName == null)
+            return new List<IAvaloniaGraph>();
+
+        if (GraphsList.TryGetValue(graphName, out var byAnimat) && byAnimat.TryGetValue(animat, out var graphs))
+        {
+            var list = graphs.FindAll(x => x.GraphInfo.ModeType == mode);
+            if (list.Count > 0)
+                return list;
+
+            int down = (int)mode + 1;
+            if (down < 3)
+            {
+                list = graphs.FindAll(x => x.GraphInfo.ModeType == (IGameSave.ModeType)down);
+                if (list.Count > 0)
+                    return list;
+            }
+
+            int up = (int)mode - 1;
+            if (up >= 0)
+            {
+                list = graphs.FindAll(x => x.GraphInfo.ModeType == (IGameSave.ModeType)up);
+                if (list.Count > 0)
+                    return list;
+            }
+
+            return graphs;
+        }
+
+        return new List<IAvaloniaGraph>();
+    }
+
+    public void Dispose()
+    {
+        CleanTimer.Dispose();
+        foreach (var graph in GraphsALL)
+        {
+            graph.Dispose();
+        }
+        GraphsALL.Clear();
+        GraphsList.Clear();
+        GraphsName.Clear();
+        CommUIElements.Clear();
+        CommConfig.Clear();
+    }
+
+}

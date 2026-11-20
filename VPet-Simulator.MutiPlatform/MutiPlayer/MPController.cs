@@ -1,0 +1,169 @@
+using System;
+using VPet_Simulator.Core;
+using VPet_Simulator.Core.MutiPlatform;
+
+namespace VPet_Simulator.MutiPlatform
+{
+    /// <summary>
+    /// 窗体控制器实现
+    /// </summary>
+    /// <remarks>访客窗口使用与主桌宠相同的屏幕单位和 Wayland 定位规则。</remarks>
+    public class MPController : IController
+    {
+        readonly MPFriends mp;
+        readonly MainWindow mw;
+        public MPController(MPFriends mp, MainWindow mw)
+        {
+            this.mp = mp;
+            this.mw = mw;
+        }
+
+        public double GetWindowsDistanceLeft()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return MWController.FarAway * ZoomRatio;
+            return mp.Dispatcher.Invoke(() =>
+            {
+                if (mw.MWController.IsPrimaryScreen) return mp.Left;
+                return mp.Left - mw.MWController.ScreenBorder.X;
+            });
+        }
+
+        public double GetWindowsDistanceUp()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return MWController.FarAway * ZoomRatio;
+            return mp.Dispatcher.Invoke(() =>
+            {
+                if (mw.MWController.IsPrimaryScreen) return mp.Top;
+                return mp.Top - mw.MWController.ScreenBorder.Y;
+            });
+        }
+
+        public double GetWindowsDistanceRight()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return MWController.FarAway * ZoomRatio;
+            return mp.Dispatcher.Invoke(() =>
+            {
+                if (mw.MWController.IsPrimaryScreen) return mw.MWController.PrimaryScreen.Width - mp.Left - mp.ActualWidth;
+                return mw.MWController.ScreenBorder.Width + mw.MWController.ScreenBorder.X - mp.Left - mp.ActualWidth;
+            });
+        }
+
+        public double GetWindowsDistanceDown()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return MWController.FarAway * ZoomRatio;
+            return mp.Dispatcher.Invoke(() =>
+            {
+                if (mw.MWController.IsPrimaryScreen) return mw.MWController.PrimaryScreen.Height - mp.Top - mp.ActualHeight;
+                return mw.MWController.ScreenBorder.Height + mw.MWController.ScreenBorder.Y - mp.Top - mp.ActualHeight;
+            });
+        }
+
+        public void MoveWindows(double X, double Y)
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return;
+            mp.Dispatcher.Invoke(() =>
+            {
+                WindowPositioning.MoveBy(mp, X * ZoomRatio, Y * ZoomRatio, mp.Scaling);
+            });
+        }
+
+        public void ShowSetting()
+        {
+
+        }
+
+        public void ShowPanel()
+        {
+
+        }
+
+        public void ResetPosition()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return;
+            mp.Dispatcher.Invoke(() =>
+            {
+                double x = 0, y = 0;
+                if (GetWindowsDistanceUp() < -0.25 * mp.ActualHeight && GetWindowsDistanceDown() < mw.MWController.PrimaryScreen.Height)
+                {
+                    y = -GetWindowsDistanceUp() / ZoomRatio;
+                }
+                else if (GetWindowsDistanceDown() < -0.25 * mp.ActualHeight && GetWindowsDistanceUp() < mw.MWController.PrimaryScreen.Height)
+                {
+                    y = GetWindowsDistanceDown() / ZoomRatio;
+                }
+                if (GetWindowsDistanceLeft() < -0.25 * mp.ActualWidth && GetWindowsDistanceRight() < mw.MWController.PrimaryScreen.Width)
+                {
+                    x = -GetWindowsDistanceLeft() / ZoomRatio;
+                }
+                else if (GetWindowsDistanceRight() < -0.25 * mp.ActualWidth && GetWindowsDistanceLeft() < mw.MWController.PrimaryScreen.Width)
+                {
+                    x = GetWindowsDistanceRight() / ZoomRatio;
+                }
+                if (x != 0 || y != 0)
+                    MoveWindows(x, y);
+            });
+        }
+        public bool CheckPosition() => mw.MWController.CanPositionWindow && mp.Dispatcher.Invoke(() =>
+               GetWindowsDistanceUp() < -0.25 * mp.ActualHeight && GetWindowsDistanceDown() < mw.MWController.PrimaryScreen.Height
+            || GetWindowsDistanceDown() < -0.25 * mp.ActualHeight && GetWindowsDistanceUp() < mw.MWController.PrimaryScreen.Height
+            || GetWindowsDistanceLeft() < -0.25 * mp.ActualWidth && GetWindowsDistanceRight() < mw.MWController.PrimaryScreen.Width
+            || GetWindowsDistanceRight() < -0.25 * mp.ActualWidth && GetWindowsDistanceLeft() < mw.MWController.PrimaryScreen.Width
+        );
+
+        public bool RePositionActive { get; set; } = true;
+
+        public double ZoomRatio => mw.Set.ZoomLevel;
+
+        public int PressLength => mw.Set.PressLength;
+
+        public bool EnableFunction => false;
+
+        public int InteractionCycle => mw.Set.InteractionCycle;
+
+        public bool AutoChangeWindow => mw.Set.AutoChangeWindow;
+
+        public bool IfInActivateScreen()
+        {
+            if (!mw.MWController.CanPositionWindow)
+                return true;
+            //跨平台: Avalonia 的 Dispatcher 没有 HasShutdownStarted, 退出中的情况由下面的 try/catch 兜住
+            return mp.Dispatcher.Invoke(() =>
+            {
+
+                try
+                {
+                    var screen = mp.Screens?.ScreenFromWindow(mp);
+                    var screens = mp.Screens?.All;
+                    if (screen == null || screens == null)
+                        return true;
+                    for (int i = 0; i < screens.Count; i++)
+                    {
+                        if (screens[i].Equals(screen))
+                        {
+                            if (i == mw.Set.GameScreenIndex)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+                catch (Exception)
+                {
+                    return true;
+                }
+            });
+        }
+
+        public void SetNowScreenActivate()
+        {
+
+        }
+    }
+}

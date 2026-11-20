@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<RootNamespace>VPet_Simulator.Core</RootNamespace>
+		<AssemblyName>VPet_Simulator.Core.Base</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<FileVersion>1.0.0.0</FileVersion>
+		<Product>VPet_Simulator.Core.Base</Product>
+		<Copyright>Copyright ©  2022</Copyright>
+		<NoWarn>CS1591</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="$(VPetRoot)/VPet-Simulator.Core/Handle/GameSave.cs" Link="Handle/GameSave.cs" />
+		<Compile Include="$(VPetRoot)/VPet-Simulator.Core/Handle/IGameSave.cs" Link="Handle/IGameSave.cs" />
+		<Compile Include="$(VPetRoot)/VPet-Simulator.Core/Handle/IController.cs" Link="Handle/IController.cs" />
+		<Compile Include="$(VPetRoot)/VPet-Simulator.Core/Handle/IFood.cs" Link="Handle/IFood.cs" />
+		<None Include="..\.editorconfig" Link=".editorconfig" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="LinePutScript" Version="1.11.9" />
+	</ItemGroup>
+
+</Project>

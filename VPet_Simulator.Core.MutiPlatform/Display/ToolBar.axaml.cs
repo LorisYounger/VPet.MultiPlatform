@@ -1,0 +1,492 @@
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+
+using System;
+using System.Collections.Generic;
+using System.Timers;
+using static VPet_Simulator.Core.GraphInfo;
+using Timer = System.Timers.Timer;
+
+namespace VPet_Simulator.Core.MutiPlatform.Display;
+
+/// <summary>
+/// 工具栏
+/// </summary>
+/// 对应 Windows 版 VPet-Simulator.Core/Display/ToolBar.xaml.cs.
+/// 右键桌宠弹出, 4 秒无操作自动收起.
+public partial class ToolBar : UserControl, IDisposable
+{
+    private readonly Main m;
+    public Timer CloseTimer;
+    bool onFocus = false;
+    public Timer closePanelTimer;
+
+    /// <summary>
+    /// 无参构造仅供 Avalonia 设计器使用
+    /// </summary>
+    public ToolBar() : this(null!)
+    {
+    }
+
+    public ToolBar(Main m)
+    {
+        InitializeComponent();
+        this.m = m;
+        CloseTimer = new Timer()
+        {
+            Interval = 4000,
+            AutoReset = false,
+            Enabled = false
+        };
+        CloseTimer.Elapsed += Closetimer_Elapsed;
+        // 面板收起后停止检查指针位置。
+        closePanelTimer = new Timer(100);
+        closePanelTimer.Elapsed += ClosePanelTimer_Tick;
+        // 子菜单使用独立的弹出窗口。指针进入子菜单时，暂停工具栏的自动收起计时。
+        ToolBarMenu.AddHandler(MenuItem.SubmenuOpenedEvent, (_, _) => CloseTimer.Enabled = false);
+        ToolBarMenu.Closed += (_, _) =>
+        {
+            if (IsVisible && !IsPointerOver)
+                CloseTimer.Start();
+        };
+        if (m != null)
+            m.TimeUIHandle += M_TimeUIHandle;
+        LoadDIY();
+    }
+
+    /// <summary>
+    /// 收起工具栏
+    /// </summary>
+    /// WPF 里把工具栏 Collapsed 掉, 它的 Popup 会跟着关; Avalonia 不会, 得先把菜单关掉
+    public void Hide()
+    {
+        ToolBarMenu.Close();
+        CloseTimer.Enabled = false;
+        IsVisible = false;
+    }
+
+    public void LoadClean()
+    {
+        MenuWork.Click -= MenuWork_Click;
+        MenuWork.IsVisible = true;
+        MenuStudy.Click -= MenuStudy_Click;
+        MenuStudy.IsVisible = true;
+        MenuPlay.Click -= MenuPlay_Click;
+        MenuPlay.IsVisible = true;
+
+        MenuWork.Items.Clear();
+        MenuStudy.Items.Clear();
+        MenuPlay.Items.Clear();
+    }
+
+    /// <summary>
+    /// 加载默认工作
+    /// </summary>
+    public void LoadWork()
+    {
+        LoadClean();
+
+        m.WorkList(out List<GraphHelper.Work> ws, out List<GraphHelper.Work> ss, out List<GraphHelper.Work> ps);
+
+        if (ws.Count == 0)
+        {
+            MenuWork.IsVisible = false;
+        }
+        else if (ws.Count == 1)
+        {
+            MenuWork.Click += MenuWork_Click;
+            wwork = ws[0];
+            MenuWork.Header = ws[0].NameTrans;
+        }
+        else
+        {
+            foreach (var w in ws)
+            {
+                var mi = new MenuItem()
+                {
+                    Header = w.NameTrans
+                };
+                mi.Click += (s, e) => StartWork(w);
+
+                MenuWork.Items.Add(mi);
+            }
+        }
+        if (ss.Count == 0)
+        {
+            MenuStudy.IsVisible = false;
+        }
+        else if (ss.Count == 1)
+        {
+            MenuStudy.Click += MenuStudy_Click;
+            wstudy = ss[0];
+            MenuStudy.Header = ss[0].NameTrans;
+        }
+        else
+        {
+            foreach (var w in ss)
+            {
+                var mi = new MenuItem()
+                {
+                    Header = w.NameTrans
+                };
+                mi.Click += (s, e) => StartWork(w);
+                MenuStudy.Items.Add(mi);
+            }
+        }
+        if (ps.Count == 0)
+        {
+            MenuPlay.IsVisible = false;
+        }
+        else if (ps.Count == 1)
+        {
+            MenuPlay.Click += MenuPlay_Click;
+            wplay = ps[0];
+            MenuPlay.Header = ps[0].NameTrans;
+        }
+        else
+        {
+            foreach (var w in ps)
+            {
+                var mi = new MenuItem()
+                {
+                    Header = w.NameTrans
+                };
+                mi.Click += (s, e) => StartWork(w);
+                MenuPlay.Items.Add(mi);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 自动显示和隐藏DIY菜单
+    /// </summary>
+    public void LoadDIY()
+    {
+        MenuDIY.IsVisible = MenuDIY.Items.Count > 0;
+    }
+
+    private void MenuStudy_Click(object? sender, RoutedEventArgs e)
+    {
+        StartWork(wstudy);
+    }
+
+    GraphHelper.Work? wwork;
+    GraphHelper.Work? wstudy;
+    GraphHelper.Work? wplay;
+
+    private void MenuWork_Click(object? sender, RoutedEventArgs e)
+    {
+        StartWork(wwork);
+    }
+
+    private void MenuPlay_Click(object? sender, RoutedEventArgs e)
+    {
+        StartWork(wplay);
+    }
+
+    /// <summary>
+    /// 开始工作
+    /// </summary>
+    /// <remarks>开始工作后才收起工具栏，等级不足或生病时玩家仍可选择其他活动。</remarks>
+    public void StartWork(GraphHelper.Work? w)
+    {
+        if (m.StartWork(w))
+            Hide();
+    }
+
+    /// <summary>
+    /// 刷新显示UI
+    /// </summary>
+    public void M_TimeUIHandle(Main m)
+        {
+            if (BdrPanel.IsVisible)
+            {
+                var save = m.Core.Save!;
+                // Tag 保存控件上次呈现的数值，未变化时不再格式化文本。
+                void UpdateText(TextBlock text, double value, string format)
+                {
+                    if (text.Tag is double previous && previous == value) return;
+                    text.Tag = value;
+                    text.Text = string.Format(format, value);
+                }
+                void UpdateProgress(ProgressBar progress, double value, double maximum, double minimum = 0)
+                {
+                    if (progress.Maximum != maximum || progress.Minimum != minimum)
+                    {
+                        progress.Maximum = maximum;
+                        progress.Minimum = minimum;
+                    }
+                    if (progress.Value != value) progress.Value = value;
+                }
+                UpdateText(Tlv, save.Level, "Lv {0:0}");
+                UpdateText(tExp, save.ExpBonus, "x{0:f2}");
+                UpdateText(tMoney, save.Money, "$ {0:N2}");
+                if (m.Core.Controller!.EnableFunction)
+                {
+                    till.IsVisible = save.Mode == IGameSave.ModeType.Ill;
+                    tfun.IsVisible = false;
+                }
+                else
+                {
+                    till.IsVisible = false;
+                    tfun.IsVisible = true;
+                }
+                double exp = save.Exp;
+                UpdateProgress(pExp, exp, save.LevelUpNeed(), Math.Min(0, exp));
+                double strengthMax = save.StrengthMax;
+                UpdateProgress(pStrength, save.Strength, strengthMax);
+                UpdateProgress(pFeeling, save.Feeling, save.FeelingMax);
+                UpdateProgress(pStrengthFood, save.StrengthFood, strengthMax);
+                UpdateProgress(pStrengthDrink, save.StrengthDrink, strengthMax);
+                UpdateProgress(pStrengthFoodMax, Math.Min(100, (save.StrengthFood + save.StoreStrengthFood) / strengthMax * 100), 100);
+                UpdateProgress(pStrengthDrinkMax, Math.Min(100, (save.StrengthDrink + save.StoreStrengthDrink) / strengthMax * 100), 100);
+
+
+                // Avalonia 的数值文字独立于进度条；只在数值或上限改变时更新。
+                void UpdateValueText(TextBlock text, ProgressBar progress)
+                {
+                    var values = (progress.Value, progress.Maximum);
+                    if (text.Tag is ValueTuple<double, double> previous && previous == values) return;
+                    text.Tag = values;
+                    text.Text = $"{values.Value:f2} / {values.Maximum:f0}";
+                }
+                UpdateValueText(tExpValue, pExp);
+                UpdateValueText(tStrengthValue, pStrength);
+                UpdateValueText(tFeelingValue, pFeeling);
+                UpdateValueText(tStrengthFoodValue, pStrengthFood);
+                UpdateValueText(tStrengthDrinkValue, pStrengthDrink);
+                pFeeling.Foreground = GetForeground(pFeeling.Value / pFeeling.Maximum);
+                pStrengthFood.Foreground = GetForeground(pStrengthFood.Value / pStrengthFood.Maximum);
+                pStrengthDrink.Foreground = GetForeground(pStrengthDrink.Value / pStrengthDrink.Maximum);
+                UpdateText(tStrength, save.ChangeStrength, Math.Abs(save.ChangeStrength) > 1 ? "{0:f1}/t" : "{0:f2}/t");
+                UpdateText(tFeeling, save.ChangeFeeling, Math.Abs(save.ChangeFeeling) > 1 ? "{0:f1}/t" : "{0:f2}/t");
+                UpdateText(tStrengthDrink, save.ChangeStrengthDrink, Math.Abs(save.ChangeStrengthDrink) > 1 ? "{0:f1}/t" : "{0:f2}/t");
+                UpdateText(tStrengthFood, save.ChangeStrengthFood, Math.Abs(save.ChangeStrengthFood) > 1 ? "{0:f1}/t" : "{0:f2}/t");
+            }
+        }
+
+    private void ClosePanelTimer_Tick(object? sender, EventArgs e)
+    {
+        Main.RunOnUi(() =>
+        {
+            if (BdrPanel.IsPointerOver
+                || MenuPanel.IsPointerOver)
+            {
+                closePanelTimer.Stop();
+                return;
+            }
+            BdrPanel.IsVisible = false;
+            closePanelTimer.Stop();
+        });
+    }
+
+    private void Closetimer_Elapsed(object? sender, ElapsedEventArgs e)
+    {
+        if (onFocus)
+        {
+            onFocus = false;
+            CloseTimer.Start();
+        }
+        else
+            Main.RunOnUi(() =>
+            {
+                //菜单还开着 (指针在弹出层里) 就再等一轮
+                if (ToolBarMenu.IsOpen)
+                    CloseTimer.Start();
+                else
+                    Hide();
+            });
+    }
+
+    /// <summary>
+    /// ToolBar显示事件
+    /// </summary>
+    public event Action? EventShow;
+
+    public void Show()
+    {
+        EventShow?.Invoke();
+        if (m.UIGrid.Children.IndexOf(this) != m.UIGrid.Children.Count - 1)
+        {
+            ZIndex = m.UIGrid.Children.Count;
+        }
+        IsVisible = true;
+        if (CloseTimer.Enabled)
+            onFocus = true;
+        else
+            CloseTimer.Start();
+    }
+
+    private void UserControl_MouseEnter(object? sender, PointerEventArgs e)
+    {
+        CloseTimer.Enabled = false;
+    }
+
+    private void UserControl_MouseLeave(object? sender, PointerEventArgs e)
+    {
+        //进了弹出层不算离开
+        if (ToolBarMenu.IsOpen)
+            return;
+        CloseTimer.Start();
+    }
+
+    private void MenuPanel_Click(object? sender, RoutedEventArgs e)
+    {
+        m.Core.Controller!.ShowPanel();
+    }
+
+    /// <summary>
+    /// 窗口类型
+    /// </summary>
+    public enum MenuType
+    {
+        /// <summary>
+        /// 投喂
+        /// </summary>
+        Feed,
+        /// <summary>
+        /// 互动
+        /// </summary>
+        Interact,
+        /// <summary>
+        /// 自定
+        /// </summary>
+        DIY,
+        /// <summary>
+        /// 设置
+        /// </summary>
+        Setting,
+    }
+
+    /// <summary>
+    /// 添加按钮
+    /// </summary>
+    /// <param name="parentMenu">按钮位置</param>
+    /// <param name="displayName">显示名称</param>
+    /// <param name="clickCallback">功能</param>
+    public void AddMenuButton(MenuType parentMenu,
+        string displayName,
+        Action clickCallback)
+    {
+        var menuItem = new MenuItem()
+        {
+            Header = displayName
+        };
+        menuItem.Click += delegate
+        {
+            clickCallback?.Invoke();
+        };
+        var parent = FindMenu(parentMenu);
+        parent.Items.Add(menuItem);
+        parent.IsVisible = true;
+        if (parentMenu == MenuType.DIY)
+            LoadDIY();
+    }
+
+    /// <summary>
+    /// 添加带二级分组的按钮
+    /// </summary>
+    /// <param name="parentMenu">按钮位置</param>
+    /// <param name="groupName">分组名称, 没有就新建一个</param>
+    /// <param name="displayName">显示名称</param>
+    /// <param name="clickCallback">功能</param>
+    /// Windows 版的"投喂"点开是一整个商店窗口, 跨平台版没有那个窗口, 改成在菜单里
+    /// 按食物类型分组直接列出来, 所以需要这一层.
+    public void AddMenuButton(MenuType parentMenu,
+        string groupName,
+        string displayName,
+        Action clickCallback)
+    {
+        var parent = FindMenu(parentMenu);
+        MenuItem? group = null;
+        foreach (var item in parent.Items)
+        {
+            if (item is MenuItem mi && (mi.Header as string) == groupName)
+            {
+                group = mi;
+                break;
+            }
+        }
+        if (group == null)
+        {
+            group = new MenuItem() { Header = groupName };
+            parent.Items.Add(group);
+            parent.IsVisible = true;
+            if (parentMenu == MenuType.DIY)
+                LoadDIY();
+        }
+        var menuItem = new MenuItem() { Header = displayName };
+        menuItem.Click += delegate
+        {
+            clickCallback?.Invoke();
+        };
+        group.Items.Add(menuItem);
+    }
+
+    private MenuItem FindMenu(MenuType parentMenu) => parentMenu switch
+    {
+        MenuType.Feed => MenuFeed,
+        MenuType.Interact => MenuInteract,
+        MenuType.DIY => MenuDIY,
+        _ => MenuSetting,
+    };
+
+    private IBrush? GetForeground(double value)
+    {
+        if (value >= .6)
+        {
+            return this.FindResource("SuccessProgressBarForeground") as IBrush;
+        }
+        else if (value >= .3)
+        {
+            return this.FindResource("WarningProgressBarForeground") as IBrush;
+        }
+        else
+        {
+            return this.FindResource("DangerProgressBarForeground") as IBrush;
+        }
+    }
+
+    /// <summary>
+    /// MenuPanel显示事件
+    /// </summary>
+    public event Action? EventMenuPanelShow;
+
+    private void MenuPanel_MouseEnter(object? sender, PointerEventArgs e)
+    {
+        BdrPanel.IsVisible = true;
+        M_TimeUIHandle(m);
+        EventMenuPanelShow?.Invoke();
+    }
+
+    private void MenuPanel_MouseLeave(object? sender, PointerEventArgs e)
+    {
+        closePanelTimer.Start();
+    }
+
+    public void Dispose()
+    {
+        CloseTimer.Dispose();
+        closePanelTimer.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    private void Sleep_Click(object? sender, RoutedEventArgs e)
+    {
+        if (m.State == Main.WorkingState.Sleep)
+        {
+            if (m.Core.Save!.Mode == IGameSave.ModeType.Ill)
+                return;
+            m.State = Main.WorkingState.Nomal;
+            m.Display(GraphType.Sleep, AnimatType.C_End, m.DisplayNomal);
+        }
+        else if (m.State == Main.WorkingState.Nomal)
+            m.DisplaySleep(true);
+        else
+        {
+            m.WorkTimer?.Stop(() => m.DisplaySleep(true), WorkTimer.FinishWorkInfo.StopReason.MenualStop);
+        }
+    }
+}
