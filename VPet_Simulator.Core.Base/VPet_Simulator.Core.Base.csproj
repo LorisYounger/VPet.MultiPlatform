@@ -27,4 +27,9 @@
 		<PackageReference Include="LinePutScript" Version="1.11.9" />
 	</ItemGroup>
 
+	<Target Name="InitializeVPetSubmodule" BeforeTargets="PrepareForBuild"
+	        Condition="'$(UseVPetSubmodule)' == 'true' and '$(DesignTimeBuild)' != 'true' and !Exists('$(VPetRoot)/VPet-Simulator.Core/Handle/GameSave.cs')">
+		<Exec WorkingDirectory="$(MSBuildProjectDirectory)/.." Command="git submodule update --init --depth 1 --filter=blob:none -- VPet" />
+	</Target>
+
 </Project>

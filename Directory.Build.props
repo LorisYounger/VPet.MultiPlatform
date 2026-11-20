@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
-    <VPetRoot Condition="'$(VPetRoot)' == ''">$(MSBuildThisFileDirectory)..</VPetRoot>
+    <VPetRoot Condition="'$(VPetRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../VPet-Simulator.Core/Handle/GameSave.cs')">$(MSBuildThisFileDirectory)..</VPetRoot>
+    <UseVPetSubmodule Condition="'$(VPetRoot)' == ''">true</UseVPetSubmodule>
+    <VPetRoot Condition="'$(UseVPetSubmodule)' == 'true'">$(MSBuildThisFileDirectory)VPet</VPetRoot>
   </PropertyGroup>
 </Project>

@@ -9,7 +9,7 @@
 dotnet run --project VPet-Simulator.MutiPlatform
 ```
 
-- Windows 开发时在构建后运行本项目的 `mklink.bat`，从运行目录直接读主库的 `VPet-Simulator.Windows/mod`。发布版的官方 MOD 随公共数据安装。
+- 独立克隆构建时，官方桌宠资源随宿主复制到 `mod/0000_core`。使用本地主库联调时，按[仓库说明](../README.md)链接资源目录。
 - 游戏以可执行文件所在目录为准。本地 MOD 在 `mod/`，存档在 `Saves/`，备份在 `Saves_BKP/`，缓存在 `cache/`。默认桌宠读取 `Setting.lps`，多开桌宠读取 `Setting-名字.lps`。
 - 升级后要继续使用原先保存在用户目录的数据，请将其复制到可执行文件所在目录。
 - 使用 `--prefix <存档名>` 打开指定桌宠，使用 `+connect_lobby <房间号>` 加入访客表。

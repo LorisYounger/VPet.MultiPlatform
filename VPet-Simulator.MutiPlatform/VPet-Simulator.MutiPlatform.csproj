@@ -81,6 +81,18 @@
     <Content Include="Lib/osslsigncode/sources/**/*" Link="tools/osslsigncode/sources/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- 首次构建时，Core.Base 会先检出子模块，因此在收集输出文件时再枚举官方 MOD。 -->
+  <Target Name="IncludeOfficialMod" BeforeTargets="GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems"
+          Condition="'$(UseVPetSubmodule)' == 'true'">
+    <ItemGroup>
+      <_OfficialModFile Include="$(VPetRoot)/VPet-Simulator.Windows/mod/0000_core/**/*"
+                        CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+    <AssignTargetPath Files="@(_OfficialModFile)" RootFolder="$(VPetRoot)/VPet-Simulator.Windows">
+      <Output TaskParameter="AssignedFiles" ItemName="ContentWithTargetPath" />
+    </AssignTargetPath>
+  </Target>
+
   <Target Name="ValidateBundledOsslSignCode" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <OsslSignCodeName Condition="'$(RuntimeIdentifier)' == 'win-x64'">osslsigncode.exe</OsslSignCodeName>

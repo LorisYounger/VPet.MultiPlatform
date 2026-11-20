@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="VPet-Simulator.MutiPlatform/VPet-Simulator.MutiPlatform.csproj" />
+  <Project Path="VPet-Simulator.Unified/VPet-Simulator.Unified.csproj" />
+  <Project Path="VPet_Simulator.Core.Base/VPet_Simulator.Core.Base.csproj" />
+  <Project Path="VPet_Simulator.Core.MutiPlatform/VPet_Simulator.Core.MutiPlatform.csproj" />
+</Solution>
